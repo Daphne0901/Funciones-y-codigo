@@ -1,0 +1,119 @@
+---
+title: "Funciones_oficiales"
+author: "Daphne Arenas"
+date: '2022-09-25'
+output: html_document
+---
+
+#Cargando librerias
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+#Funcion para tener ordenados las variables pero en formato de cada dia y año (NO PROMEDIOS)
+```{r}
+datos_ordenados_tabla <- function(ruta,variable_vector,year_init,year_end,columna_fecha){
+  estacion <- readr::read_csv(ruta)
+  fechacorr <-  as.Date(pull(estacion[columna_fecha]),'%Y/%m/%d')
+  dia <- as.numeric(format(fechacorr,'%d'))
+  mes <- as.numeric(format(fechacorr,'%m'))
+  year <- as.numeric(format(fechacorr,'%Y'))
+  estacion_fecha <- cbind(estacion,dia,mes,year) 
+  estacion_fecha_sel <- estacion_fecha %>% select(columna_fecha, dia, mes, year, all_of(variable_vector))
+  estacion_fecha_sel_filtro <- filter(estacion_fecha_sel, year>=year_init & year<=year_end)
+  return(estacion_fecha_sel_filtro)
+}
+```
+##Poniendo a prueba
+```{r}
+datos_ordenados_tabla(ruta="Tumbes formato csv/000132.csv",variable_vector=c("Tmax (C)","Tmin (C)"), 2000, 2014, columna_fecha="Fecha")
+```
+## Viendo los NAN que hay en la variable
+```{r}
+#Variable elegida: T min
+Tmin_corregido <- datos_ordenados_tabla(ruta="Tumbes formato csv/000132.csv",variable_vector="Tmin (C)", 2000, 2014, columna_fecha="Fecha")
+
+meses <- c("Ene" , "Feb", "Mar" ,"Abr" ,"May" ,"Jun", "Jul" ,"Ago" ,"Set" ,"Oct" ,"Nov", "Dic")
+#Viendo los NaN
+Tmin_NA_puerto_maldonado <- Tmin_corregido %>%  
+  group_by(year,mes) %>%
+  summarise(Tmin_contando = sum(is.na(`Tmin (C)`))) %>% 
+  pivot_wider(names_from = mes, values_from = Tmin_contando) %>%
+  rename_at(c(2:13),~meses) %>% # error al seleccionar los numeros de las columnas
+  rename("Año"=year)
+Tmin_NA_puerto_maldonado
+```
+##Representación gráfica de los datos nulos de la variable
+```{r}
+grafica_nulos <- data.matrix(Tmin_NA_puerto_maldonado[,-c(1)])
+rownames(grafica_nulos) <- paste("Año", 2000:2014)
+heatmap(grafica_nulos,col = hcl.colors(50))
+```
+### Usando la función para tener ordenado los datos de la variable elegida
+```{r}
+Tmin_promedio_anual <- Tmin_corregido %>%
+  group_by(year,mes) %>%
+  summarise(Tmin_m = mean(`Tmin (C)`))%>% #en el mean, pones el dato de la variable que quieres sacar promedio
+  mutate(Tmin_m = round(Tmin_m,1))%>% #para tener 1 decimal en Tmin
+  pivot_wider(names_from = mes, values_from = Tmin_m)%>% 
+  rename_at(c(2:13),~meses) %>% 
+  mutate(Prom=rowMeans(across("Ene":"Dic"))) %>%
+  mutate(Prom=round(Prom,1)) %>% 
+  rename("Año"=year)
+Tmin_promedio_anual
+```
+## Exportando
+```{r}
+estacion <- "000132 T min"
+write.csv(Tmin_promedio_anual, file=paste0(estacion,'.csv'))
+```
+
+
+#Intento de sacar promedio anual: error
+```{r}
+funcion_prueba <- function(ruta,variable,year_init,year_end,columna_fecha){
+  estacion <- readr::read_csv(ruta)
+  fechacorr <-  as.Date(pull(estacion[columna_fecha]),'%Y/%m/%d')
+  dia <- as.numeric(format(fechacorr,'%d'))
+  mes <- as.numeric(format(fechacorr,'%m'))
+  year <- as.numeric(format(fechacorr,'%Y'))
+  estacion_fecha <- cbind(estacion,dia,mes,year) 
+  estacion_fecha_sel <- estacion_fecha %>% select(columna_fecha, dia, mes, year, variable)
+  estacion_fecha_sel_filtro <- filter(estacion_fecha_sel, year>=year_init & year<=year_end)
+  meses <- c("Ene" , "Feb", "Mar" ,"Abr" ,"May" ,"Jun", "Jul" ,"Ago" ,"Set" ,"Oct" ,"Nov", "Dic")
+#hasta aca funciona
+  variable_anual <- estacion_fecha_sel_filtro %>%
+  #mutate("Tmin (C)") %>% 
+  group_by(year,mes) %>%
+  summarise(var_m = mean(variable))%>% 
+  mutate(var_m = round(var_m,1))%>% #para tener 1 decimal en Tmin
+  pivot_wider(names_from = mes, values_from = Tmin_m)%>% 
+  rename_at(c(2:13),~meses) %>% 
+  mutate(Prom=rowMeans(across("Ene":"Dic"))) %>%
+  mutate(Prom=round(Prom,1)) %>% 
+  rename("Año"=year)
+  return(variable_anual)
+}
+```
+
+```{r}
+funcion_prueba(ruta="Tumbes formato csv/000132.csv",variable=c("Tmax (C)"), 2000, 2014, columna_fecha="Fecha")
+```
+##Viendo el error: la doble comilla 
+```{r}
+station_wtime_sel_filter %>%
+  group_by(year,mes) %>%
+  summarise(Tmin_m = mean("Tmin (C)"))%>% #aca deberia ser `Tmin (C)`
+  mutate(Tmin_m = round(Tmin_m,1))%>% #para tener 1 decimal en Tmin
+  pivot_wider(names_from = mes, values_from = Tmin_m)%>% 
+  rename_at(c(2:13),~meses) %>% 
+  mutate(Prom=rowMeans(across("Ene":"Dic"))) %>%
+  mutate(Prom=round(Prom,1)) %>% 
+  rename("Año"=year)
+```
+
+```{r}
+#colocando texto a ver si se guarda en github
+```
+
